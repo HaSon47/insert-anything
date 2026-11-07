@@ -1,0 +1,63 @@
+# Object-removal fine-tuning of the InsertAnything LoRA. See removal_training_plan.md.
+flux_fill_path: "/home/user03/aiotlab/hachi/Image_Editing/ckpt/black-forest-labs/FLUX.1-Fill-dev"
+flux_redux_path: "/home/user03/aiotlab/hachi/Image_Editing/ckpt/black-forest-labs/FLUX.1-Redux-dev"
+# null = fresh LoRA
+init_lora_path: "/home/user03/aiotlab/hachi/Image_Editing/ckpt/Insert-Anything/20250321_steps5000_pytorch_lora_weights.safetensors"
+dtype: "bfloat16"
+
+data:
+  size: 768
+  objectstitch_root: "/home/user03/aiotlab/hachi/Image_Editing/data/ObjectStitch_V2"
+  objectstitch_rounds: [1, 2]
+  omnipaint_root: "/home/user03/aiotlab/hachi/Image_Editing/data/omnipaint-bench"
+  omnipaint_val_exclude: "experiments/config/omnipaint_val_exclude.txt"
+  samples_per_epoch: {omnipaint: 1000, objectstitch: 1000}
+  # gray = FluxFillPipeline convention (0 after [-1, 1] normalization); black = original IA training
+  masked_fill: "gray"
+  crop_jitter: {scale: [0.9, 1.2], shift: 0.1}
+  # sizes are in 768-tile pixels
+  mask_aug:
+    dilate: {p: 0.40, radius: [5, 25]}
+    bbox: {p: 0.30, scale: [1.0, 1.2]}
+    erode: {p: 0.15, radius: [3, 7], max_frac_of_obj: 0.10}
+    inference: {p: 0.15}
+
+train:
+  batch_size: 8
+  accumulate_grad_batches: 1
+  dataloader_workers: 5
+  max_steps: 10000
+  save_interval: 500
+  gradient_checkpointing: true
+  lora_dtype: float32                    # master weights; bf16 LoRA weights do not train (M3 smoke)
+  gradient_clip_val: 0.5
+  train_guidance: 1.0
+  seed: 0
+  save_path: "runs_removal"
+  run_name: "removal_v1"
+  resume_every_n_epochs: 1
+  keep_resume_ckpts: 2
+
+  lora_config:
+    r: 256
+    lora_alpha: 256
+    init_lora_weights: "gaussian"
+    target_modules: "(.*x_embedder|.*(?<!single_)transformer_blocks\\.[0-9]+\\.norm1\\.linear|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_k|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_q|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_v|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_out\\.0|.*(?<!single_)transformer_blocks\\.[0-9]+\\.ff\\.net\\.2|.*single_transformer_blocks\\.[0-9]+\\.norm\\.linear|.*single_transformer_blocks\\.[0-9]+\\.proj_mlp|.*single_transformer_blocks\\.[0-9]+\\.proj_out|.*single_transformer_blocks\\.[0-9]+\\.attn.to_k|.*single_transformer_blocks\\.[0-9]+\\.attn.to_q|.*single_transformer_blocks\\.[0-9]+\\.attn.to_v|.*single_transformer_blocks\\.[0-9]+\\.attn.to_out)"
+
+  optimizer:
+    type: "Prodigy"
+    params:
+      lr: 1
+      use_bias_correction: true
+      safeguard_warmup: true
+      weight_decay: 0.01
+
+val:
+  at_start: true
+  interval: 1000
+  objectstitch_split: "val"             # periodic validation uses ObjectStitch val, not test
+  objectstitch_n: 12                    # round 1, distinct scenes, spread over classes
+  omnipaint_val_n: 4
+  num_inference_steps: 28
+  guidance_scale: 30
+  seed: 42

@@ -1,0 +1,58 @@
+# Object-addition fine-tuning of the InsertAnything LoRA. See addition_training_plan.md.
+flux_fill_path: "/home/user03/aiotlab/hachi/Image_Editing/ckpt/black-forest-labs/FLUX.1-Fill-dev"
+flux_redux_path: "/home/user03/aiotlab/hachi/Image_Editing/ckpt/black-forest-labs/FLUX.1-Redux-dev"
+# null = fresh LoRA
+init_lora_path: "/home/user03/aiotlab/hachi/Image_Editing/ckpt/Insert-Anything/20250321_steps5000_pytorch_lora_weights.safetensors"
+dtype: "bfloat16"
+
+data:
+  size: 768
+  objectstitch_root: "/home/user03/aiotlab/hachi/Image_Editing/data/ObjectStitch_V2"
+  fsc_root: "/home/user03/aiotlab/hachi/Image_Editing/data/OBJ_INS_FSC"
+  fsc_splits: [train, val]
+  suffixes: [1, 2]
+  samples_per_epoch: 2000
+  # gray = FluxFillPipeline convention (0 after [-1, 1] normalization); black = original IA training
+  masked_fill: "gray"
+  box_scale: [1.0, 1.2]                  # training only; [1.0, 1.0] disables it
+  crop_jitter: {scale: [0.9, 1.2], shift: 0.1}
+  ref_expand_train: [1.1, 1.2, 1.3, 1.4]
+  ref_expand_eval: 1.3
+
+train:
+  batch_size: 8
+  accumulate_grad_batches: 1
+  dataloader_workers: 5
+  max_steps: 5000
+  save_interval: 500                     # every LoRA save is followed by evaluation
+  gradient_checkpointing: true
+  lora_dtype: float32                    # master weights; bf16 LoRA weights do not train (removal plan section 3.3)
+  gradient_clip_val: 0.5
+  train_guidance: 1.0
+  seed: 0
+  save_path: "runs_addition"
+  run_name: "addition_v1"
+  resume_every_n_epochs: 1
+  keep_resume_ckpts: 2
+
+  lora_config:
+    r: 256
+    lora_alpha: 256
+    init_lora_weights: "gaussian"
+    target_modules: "(.*x_embedder|.*(?<!single_)transformer_blocks\\.[0-9]+\\.norm1\\.linear|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_k|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_q|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_v|.*(?<!single_)transformer_blocks\\.[0-9]+\\.attn\\.to_out\\.0|.*(?<!single_)transformer_blocks\\.[0-9]+\\.ff\\.net\\.2|.*single_transformer_blocks\\.[0-9]+\\.norm\\.linear|.*single_transformer_blocks\\.[0-9]+\\.proj_mlp|.*single_transformer_blocks\\.[0-9]+\\.proj_out|.*single_transformer_blocks\\.[0-9]+\\.attn.to_k|.*single_transformer_blocks\\.[0-9]+\\.attn.to_q|.*single_transformer_blocks\\.[0-9]+\\.attn.to_v|.*single_transformer_blocks\\.[0-9]+\\.attn.to_out)"
+
+  optimizer:
+    type: "Prodigy"
+    params:
+      lr: 1
+      use_bias_correction: true
+      safeguard_warmup: true
+      weight_decay: 0.01
+
+val:
+  at_start: true                         # step-0 baseline = pretrained LoRA, before any training
+  n_val: 12                              # ObjectStitch val: half suffix 1, half suffix 2
+  n_train: 4                             # ObjectStitch train: half suffix 1, half suffix 2
+  num_inference_steps: 28
+  guidance_scale: 30
+  seed: 42

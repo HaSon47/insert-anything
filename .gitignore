@@ -1,0 +1,10 @@
+runs*
+outputs
+*.pyc
+.vscode
+*.md
+*.zip
+*.log
+env.sh
+infer.sh
+infer.cu

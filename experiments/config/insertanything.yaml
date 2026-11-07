@@ -1,5 +1,5 @@
-flux_fill_path: "/path/to/black-forest-labs-FLUX.1-Fill-dev"
-flux_redux_path: "/path/to/black-forest-labs-FLUX.1-Redux-dev"
+flux_fill_path: "/home/user03/aiotlab/hachi/Image_Editing/ckpt/black-forest-labs/FLUX.1-Fill-dev"
+flux_redux_path: "/home/user03/aiotlab/hachi/Image_Editing/ckpt/black-forest-labs/FLUX.1-Redux-dev"
 dtype: "bfloat16"
 
 model:
